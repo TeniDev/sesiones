@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sesiones Claude</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f3f3f1; --surface: #fcfcfb; --text: #0b0b0b; --muted: #52514e; --border: #e2e1dc;
+    --accent: #2a78d6; --track: #dbe7f6; --idle: #b57c00; --idle-bg: #fdf1d6;
+    --ok: #0a7d0a; --ok-bg: #e2f3e2; --bad: #c03232; --bad-bg: #f9e1e1; --code: #efeeea;
+    --hero: #f4f4f1; --bar: #e4e3de; --grad-a: #2a78d6; --grad-b: #1f9e57;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #121211; --surface: #1a1a19; --text: #ffffff; --muted: #c3c2b7; --border: #2f2f2c;
+      --accent: #3987e5; --track: #22344d; --idle: #fab219; --idle-bg: #3a2f14;
+      --ok: #3cc43c; --ok-bg: #173117; --bad: #ef6b6b; --bad-bg: #3d1a1a; --code: #242422;
+      --hero: #21211f; --bar: #2c2c2a; --grad-a: #6f9cf0; --grad-b: #5fc28a;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121211; --surface: #1a1a19; --text: #ffffff; --muted: #c3c2b7; --border: #2f2f2c;
+    --accent: #3987e5; --track: #22344d; --idle: #fab219; --idle-bg: #3a2f14;
+    --ok: #3cc43c; --ok-bg: #173117; --bad: #ef6b6b; --bad-bg: #3d1a1a; --code: #242422;
+      --hero: #21211f; --bar: #2c2c2a; --grad-a: #6f9cf0; --grad-b: #5fc28a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 1; background: var(--bg); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
+  h1 { font-size: 17px; margin: 0; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12.5px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .conn { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+  .conn.on::before { content: "●"; color: var(--ok); margin-right: 4px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; border-left: 4px solid var(--accent); }
+  .card.s-idle, .card.s-waiting { border-left-color: var(--idle); }
+  .card.s-ended { border-left-color: var(--border); }
+  .card-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card-h h2 { font-size: 18px; margin: 0; flex: 1; min-width: 200px; overflow-wrap: anywhere; }
+  .meta, .stats { margin-top: 4px; font-size: 12.5px; overflow-wrap: anywhere; }
+  .stats { color: var(--text); }
+  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 14px 0 6px; }
+  h4 { font-size: 12.5px; margin: 10px 0 4px; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--track); color: var(--accent); }
+  .pill i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .p-busy i { animation: pulse 1.2s ease-in-out infinite; }
+  .p-idle, .p-waiting { background: var(--idle-bg); color: var(--idle); }
+  .p-waiting i { animation: pulse 1.2s ease-in-out infinite; }
+  .p-ended { background: var(--code); color: var(--muted); }
+  @keyframes pulse { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .p-busy i, .p-waiting i { animation: none; } }
+
+  .tag { font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 4px; background: var(--code); color: var(--muted); white-space: nowrap; }
+  .t-running { background: var(--track); color: var(--accent); }
+  .t-completed, .t-done { background: var(--ok-bg); color: var(--ok); }
+  .t-interrupted, .t-killed, .t-failed { background: var(--bad-bg); color: var(--bad); }
+
+  .close { font: inherit; font-size: 12.5px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+  .close:disabled { color: var(--muted); cursor: default; }
+  .close:not(:disabled):hover { border-color: var(--muted); }
+
+  details { border-top: 1px solid var(--border); }
+  details:last-child { border-bottom: 1px solid var(--border); }
+  details details { border: 0; }
+  summary { cursor: pointer; padding: 7px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "▸"; color: var(--muted); width: 10px; transition: transform .15s; }
+  details[open] > summary::before { transform: rotate(90deg); }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .body { padding: 0 0 10px 18px; }
+  .wname { font-weight: 600; }
+  .eta { font-weight: 600; color: var(--accent); }
+  .prompt1 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bi { color: var(--muted); font-variant-numeric: tabular-nums; }
+  pre.prompt { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--code); border-radius: 6px; padding: 8px 10px; margin: 4px 0; max-height: 240px; overflow: auto; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  ul { margin: 4px 0; padding-left: 18px; }
+  ul.files { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+  code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code); padding: 0 4px; border-radius: 3px; }
+
+  .meter { display: inline-block; width: 120px; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; vertical-align: middle; }
+  .meter > span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .phase { margin: 8px 0 4px; }
+  .phase-h { font-size: 13px; margin-bottom: 2px; }
+  .agent summary { padding: 4px 0; font-size: 13px; }
+  .alabel { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  .result { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; margin: 2px 0 6px; }
+  .empty { text-align: center; padding: 48px 16px; }
+
+  .hero { margin-top: 12px; background: var(--hero); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+  .hero-top { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 13.5px; }
+  .hero-top > :first-child { overflow-wrap: anywhere; }
+  .big { display: flex; align-items: baseline; gap: 10px; font-size: 46px; font-weight: 750; letter-spacing: -.02em; line-height: 1.1; margin: 6px 0 12px; font-variant-numeric: tabular-nums; }
+  .big-sub { font-size: 14px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+  .bar { height: 12px; border-radius: 999px; background: var(--bar); overflow: hidden; }
+  .bar > span { display: block; height: 100%; min-width: 12px; border-radius: 999px; background: linear-gradient(90deg, var(--grad-a), var(--grad-b)); }
+  .basis { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .now { margin-top: 6px; font-size: 13px; overflow-wrap: anywhere; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  .tile { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
+  .tile .k { font-size: 12.5px; color: var(--muted); }
+  .tile .v { font-size: 24px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  @media (max-width: 560px) { .big { font-size: 36px; } .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .meter { width: 70px; } .body { padding-left: 8px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sesiones de Claude Code</h1>
+  <span id="summary" class="muted small"></span>
+  <span id="conn" class="conn">conectando…</span>
+</header>
+<main id="list"></main>
+<script>
+  const $list = document.getElementById('list'), $conn = document.getElementById('conn'), $sum = document.getElementById('summary')
+  let skew = 0
+  const choice = new Map() // lo que abriste/cerraste a mano sobrevive a cada actualización
+  const now = () => Date.now() + skew
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+  const STATE = { busy: 'Trabajando', idle: 'Esperándote', waiting: 'Necesita tu respuesta', ended: 'Terminada' }
+  const WAVE = { running: 'En curso', completed: 'Completada', interrupted: 'Interrumpida', killed: 'Detenida', failed: 'Falló' }
+  const AGENT = { running: 'trabajando', done: 'listo', interrupted: 'interrumpido' }
+
+  function dur(ms) {
+    const s = Math.round(Math.max(0, ms) / 1000)
+    if (s < 60) return `${s} s`
+    const m = Math.floor(s / 60)
+    return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`
+  }
+  const since = (start, end) => start ? `<span class="muted num" data-since="${start}" data-until="${end || ''}"></span>` : ''
+  const meter = pct => `<span class="meter" role="progressbar" aria-label="Progreso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></span>`
+
+  function details(key, open, head, body, cls = '') {
+    const isOpen = choice.has(key) ? choice.get(key) : open
+    return `<details class="${cls}" data-key="${esc(key)}"${isOpen ? ' open' : ''}><summary>${head}</summary><div class="body">${body}</div></details>`
+  }
+
+  function agentHtml(key, a) {
+    const head = `<span class="tag t-${esc(a.state)}">${AGENT[a.state] ?? esc(a.state)}</span>
+      <span class="alabel">${esc(a.label)}</span> ${since(a.start, a.state === 'running' ? '' : a.end)}
+      <span class="muted small">${a.tools} tools${a.tokens ? ` · ${Math.round(a.tokens / 1000)}k tokens` : ''}</span>`
+    const body = `${a.state === 'running' && a.lastTool ? `<div class="small"><b>Ahora:</b> ${esc(a.lastTool)}</div>` : ''}
+      ${a.files?.length ? `<div class="small muted">Archivos: ${a.files.map(esc).join(', ')}</div>` : ''}
+      ${a.result ? `<div class="result">${esc(a.result)}</div>` : ''}`
+    return details(`${key}/${a.label}`, false, head, body || '<span class="muted small">Sin detalle todavía.</span>', 'agent')
+  }
+
+  function waveHtml(s, w) {
+    const key = `${s.id}/w/${w.runId}`, running = w.status === 'running', pct = Math.round(w.progress * 100)
+    const basis = w.etaBasis ? `ETA según ${w.etaBasis.runs} corridas anteriores (${dur(w.etaBasis.min)}–${dur(w.etaBasis.max)}).`
+      : running && w.expectedMs ? 'ETA según el ritmo de los agentes ya terminados.' : running ? 'ETA: calculando (aún no termina ningún agente).' : ''
+    const head = `<span class="wname">${esc(w.name)}${w.tag ? ` · ${esc(w.tag)}` : ''}</span>
+      <span class="tag t-${esc(w.status)}">${WAVE[w.status] ?? esc(w.status)}</span>
+      ${meter(pct)} <span class="num">${pct}%</span> ${since(w.start, w.end)}
+      ${running && w.expectedMs ? `<span class="eta" data-eta="${w.start + w.expectedMs}"></span>` : ''}`
+    const body = `${w.summary ? `<p class="muted small">${esc(w.summary)}</p>` : ''}
+      ${basis ? `<p class="muted small">${basis}</p>` : ''}
+      ${w.tokens ? `<p class="muted small">${Math.round(w.tokens / 1000)}k tokens en total</p>` : ''}
+      ${w.phases.map(p => {
+        const done = p.agents.filter(a => a.state === 'done').length
+        return `<div class="phase"><div class="phase-h"><b>${esc(p.title)}</b> <span class="muted">${done}/${p.agents.length} agentes listos</span></div>
+          ${p.agents.length ? p.agents.map(a => agentHtml(key, a)).join('') : '<div class="muted small">Aún no empieza.</div>'}</div>`
+      }).join('')}
+      ${w.logs?.length ? `<h4>Log</h4><ul class="small">${w.logs.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}`
+    return details(key, running, head, body, 'wave')
+  }
+
+  function blockHtml(s, b, i, waveName) {
+    const nTools = Object.values(b.tools).reduce((x, y) => x + y, 0)
+    const head = `<span class="bi">#${i + 1}</span> <span class="prompt1">${esc(b.prompt.split('\n')[0].slice(0, 160))}</span>
+      ${b.running ? '<span class="tag t-running">en curso</span>' : ''} ${since(b.start, b.running ? '' : b.end)}`
+    const body = `<pre class="prompt">${esc(b.prompt)}</pre>
+      <p class="muted small">${nTools} herramientas${nTools ? ': ' + Object.entries(b.tools).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${esc(k)} ${v}`).join(' · ') : ''}</p>
+      ${b.files.length ? `<h4>Archivos editados (${b.files.length})</h4><ul class="files">${b.files.slice(0, 60).map(f => `<li>${esc(f)}</li>`).join('')}${b.files.length > 60 ? `<li class="muted">+${b.files.length - 60} más</li>` : ''}</ul>` : ''}
+      ${b.commits.length ? `<h4>Commits</h4><ul>${b.commits.map(c => `<li><code>${esc(c.hash)}</code> ${esc(c.msg)}</li>`).join('')}</ul>` : ''}
+      ${b.waves.length ? `<p class="muted small">Waves lanzadas: ${b.waves.map(id => esc(waveName[id] ?? id)).join(', ')}</p>` : ''}`
+    return details(`${s.id}/b/${i}`, false, head, body, 'block')
+  }
+
+  // % global: el que declara la sesión (/sesiones:progreso); si no, el de la wave en curso; si no, sin %.
+  function heroHtml(s) {
+    const d = s.declared, w = s.waves.find(x => x.status === 'running'), cur = s.blocks.at(-1), st = s.stats
+    let label, right = '', pct = null, basis
+    if (d) {
+      pct = Math.round(d.percent)
+      label = esc(d.stage || 'Progreso global')
+      right = `${d.step ? esc(d.step) + ' · ' : ''}<span data-ago="${d.startedAt || s.startedAt}"></span> desde el inicio${d.startedAt ? ' de la etapa' : ''}`
+      basis = `${d.basis ? esc(d.basis) + ' · ' : ''}declarado por la sesión, actualizado hace <span data-ago="${d.updatedAt}"></span>`
+    } else if (w) {
+      pct = Math.round(w.progress * 100)
+      const phase = [...w.phases].reverse().find(p => p.agents.some(a => a.state === 'running'))
+      label = `Wave ${esc(w.name)}${w.tag ? ' · ' + esc(w.tag) : ''}`
+      right = `${phase ? 'Fase ' + esc(phase.title) + ' · ' : ''}<span data-ago="${w.start}"></span> desde que arrancó`
+      basis = `Automático: agentes listos / esperados de la wave en curso${w.expectedMs ? ` · <span data-eta="${w.start + w.expectedMs}"></span>` : ''}. Para un % global del plan, pídele a la sesión <code>/sesiones:progreso</code>.`
+    } else {
+      const line = cur?.prompt.split('\n')[0] ?? ''
+      label = cur ? `Bloque #${s.blocks.length} · ${esc(line.length > 110 ? line.slice(0, 110) + '…' : line)}` : 'Sin prompts todavía'
+      basis = 'Sin porcentaje: no hay wave en curso ni progreso declarado (<code>/sesiones:progreso</code>).'
+    }
+    const big = pct !== null ? `${pct}%`
+      : cur ? `<span data-since="${cur.start}" data-until="${cur.running ? '' : cur.end}"></span><span class="big-sub">${cur.running ? 'en el bloque actual' : 'duró el último bloque'}</span>` : '—'
+    const acts = [s.activity, ...(w ? w.phases.flatMap(p => p.agents).filter(a => a.state === 'running' && a.lastTool).map(a => ({ text: `${a.label} → ${a.lastTool}`, at: a.end })) : [])].filter(Boolean)
+    const act = s.state === 'busy' && acts.sort((a, b) => b.at - a.at)[0]
+    const tiles = d?.metrics.length ? d.metrics.map(m => [m.label, m.value]) : [
+      ['Bloques', st.blocks],
+      ...(st.waves ? [['Waves completadas', `${st.wavesDone}/${st.waves}`], ['Agentes listos', `${st.agentsDone}/${st.agents}`]] : []),
+      ['Archivos editados', st.files], ['Commits', st.commits], ['Herramientas usadas', st.tools],
+    ]
+    return `<div class="hero">
+      <div class="hero-top"><span>${label}</span><span>${right}</span></div>
+      <div class="big">${big}</div>
+      ${pct !== null ? `<div class="bar" role="progressbar" aria-label="Progreso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>` : ''}
+      <div class="basis">${basis}</div>
+      ${act ? `<div class="now"><b>Ahora:</b> ${esc(act.text)} · hace <span data-ago="${act.at}"></span></div>` : ''}
+      <div class="tiles">${tiles.map(([k, v]) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
+    </div>`
+  }
+
+  function sessionHtml(s) {
+    const waveName = Object.fromEntries(s.waves.map(w => [w.runId, w.name + (w.tag ? ` · ${w.tag}` : '')]))
+    const when = s.state === 'ended'
+      ? `terminó hace <span data-ago="${s.endedAt}"></span>`
+      : `abierta hace <span data-ago="${s.startedAt}"></span> · última actividad hace <span data-ago="${s.last}"></span>`
+    const blocks = s.blocks.map((b, i) => blockHtml(s, b, i, waveName)).reverse().join('')
+    return `<article class="card s-${esc(s.state)}">
+      <div class="card-h">
+        <span class="pill p-${esc(s.state)}"><i></i>${STATE[s.state] ?? esc(s.state)}</span>
+        <h2>${esc(s.title || s.name)}</h2>
+        ${s.state === 'ended' ? `<button class="close" data-close="${esc(s.id)}" data-at="${s.closableAt}">Cerrar</button>` : ''}
+      </div>
+      <div class="meta muted">${esc(s.project)} · ${esc(s.name)} · ${when}</div>
+      ${heroHtml(s)}
+      ${s.declared?.metrics.length ? `<div class="stats muted">${s.stats.blocks} bloques · ${s.stats.waves} waves · ${s.stats.agents} agentes · ${s.stats.files} archivos editados · ${s.stats.commits} commits</div>` : ''}
+      ${s.waves.length ? `<h3>Waves</h3>${[...s.waves].reverse().map(w => waveHtml(s, w)).join('')}` : ''}
+      <h3>Bloques</h3>${blocks || '<p class="muted small">Sin prompts todavía.</p>'}
+    </article>`
+  }
+
+  function render(sessions) {
+    const n = st => sessions.filter(s => s.state === st).length
+    $sum.textContent = `${n('waiting') ? n('waiting') + ' necesitan tu respuesta · ' : ''}${n('busy')} trabajando · ${n('idle')} esperándote · ${n('ended')} terminadas`
+    $list.innerHTML = sessions.length ? sessions.map(sessionHtml).join('') : '<p class="empty muted">No hay sesiones de Claude Code abiertas.</p>'
+    tickUi()
+  }
+
+  function tickUi() {
+    const t = now()
+    for (const el of document.querySelectorAll('[data-since]')) el.textContent = dur((+el.dataset.until || t) - +el.dataset.since)
+    for (const el of document.querySelectorAll('[data-ago]')) el.textContent = dur(t - +el.dataset.ago)
+    for (const el of document.querySelectorAll('[data-eta]')) {
+      const r = +el.dataset.eta - t
+      el.textContent = r > 0 ? `~${dur(r)} restantes` : 'tarda más de lo habitual'
+    }
+    for (const el of document.querySelectorAll('[data-at]')) {
+      const secs = Math.ceil((+el.dataset.at - t) / 1000)
+      el.disabled = secs > 0
+      el.textContent = secs > 0 ? `Cerrar en ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : 'Cerrar'
+    }
+  }
+
+  document.addEventListener('click', e => {
+    const sm = e.target.closest('summary')
+    if (sm) choice.set(sm.parentElement.dataset.key, !sm.parentElement.open)
+    const btn = e.target.closest('[data-close]')
+    if (btn && !btn.disabled) fetch(`/api/close/${encodeURIComponent(btn.dataset.close)}`, { method: 'POST' })
+  })
+
+  const es = new EventSource('/events')
+  es.onopen = () => { $conn.textContent = 'en vivo'; $conn.classList.add('on') }
+  es.onerror = () => { $conn.textContent = 'reconectando…'; $conn.classList.remove('on') }
+  es.onmessage = e => { const d = JSON.parse(e.data); skew = d.now - Date.now(); render(d.sessions) }
+  setInterval(tickUi, 1000)
+</script>
+</body>
+</html>

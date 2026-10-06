@@ -1,0 +1,8 @@
+{
+  "name": "sesiones",
+  "version": "0.2.0",
+  "description": "Dashboard local de tus sesiones de Claude Code: estado en vivo, bloques, waves de Workflow con tiempos y ETA.",
+  "author": {
+    "name": "Teni"
+  }
+}

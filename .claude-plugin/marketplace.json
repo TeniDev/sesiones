@@ -1,0 +1,14 @@
+{
+  "name": "teni",
+  "description": "Plugins locales de Teni",
+  "owner": {
+    "name": "Teni"
+  },
+  "plugins": [
+    {
+      "name": "sesiones",
+      "source": "./",
+      "description": "Dashboard local de tus sesiones de Claude Code"
+    }
+  ]
+}
